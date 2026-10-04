@@ -1,0 +1,1 @@
+import {traffic} from './crudControllers.js'; export const listTraffic=traffic.list; export const createTraffic=traffic.create; export const updateTraffic=traffic.update; export const deleteTraffic=traffic.remove;

@@ -1,0 +1,1 @@
+import {transport} from './crudControllers.js'; export const listTransport=transport.list; export const createTransport=transport.create; export const updateTransport=transport.update; export const deleteTransport=transport.remove;

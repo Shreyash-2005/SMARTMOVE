@@ -1,0 +1,1 @@
+import {parking} from './crudControllers.js'; export const listParking=parking.list; export const createParking=parking.create; export const updateParking=parking.update; export const deleteParking=parking.remove;

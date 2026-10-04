@@ -1,0 +1,22 @@
+import express from "express";
+import cors from "cors";
+import path from "path";
+import api from "./routes/index.js";
+import {notFound,errorHandler} from "./middleware/error.js";
+import {env} from "./config/env.js";
+import {securityHeaders, rateLimit} from "./middleware/security.js";
+
+const app=express();
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(cors({ origin: env.frontendOrigin === "*" ? true : env.frontendOrigin.split(",").map(x=>x.trim()), credentials: false }));
+app.use(express.json({limit:"2mb"}));
+app.use(express.urlencoded({extended:true, limit:"2mb"}));
+app.use(rateLimit({windowMs:60*1000,max:180}));
+app.use("/uploads",express.static(path.resolve("uploads"), { maxAge: "1h" }));
+app.get("/api/health",(req,res)=>res.json({status:"ok",service:"SMARTMOVE API",timestamp:new Date().toISOString()}));
+app.use("/api",api);
+app.use(notFound);
+app.use(errorHandler);
+export default app;

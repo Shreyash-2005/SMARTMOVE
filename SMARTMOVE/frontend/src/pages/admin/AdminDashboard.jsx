@@ -1,0 +1,34 @@
+import {useCallback,useEffect,useState} from "react"; import {Navigate} from "react-router-dom"; import {BarChart,Bar,XAxis,YAxis,Tooltip,ResponsiveContainer,PieChart,Pie,Cell,Legend} from "recharts"; import {CheckCircle2,Clock3,FileWarning,RefreshCw,Save,ShieldCheck} from "lucide-react"; import {api,getError} from '../../services/api'; import {useAuth} from '../../context/AuthContext';
+
+const statuses=["REPORTED","IN_PROGRESS","RESOLVED","REJECTED"];
+const priorities=["LOW","MEDIUM","HIGH"];
+
+export default function AdminDashboard(){
+ const {user}=useAuth(); const [d,setD]=useState(null),[reports,setReports]=useState([]),[error,setError]=useState(''),[saving,setSaving]=useState(''),[msg,setMsg]=useState('');
+ const load=useCallback(async()=>{try{setError('');const [dash,issues]=await Promise.all([api.get('/admin/dashboard'),api.get('/issues')]);setD(dash.data);setReports(issues.data)}catch(e){setError(getError(e))}},[]);
+ useEffect(()=>{if(user?.role==='ADMIN')load()},[user,load]);
+ const updateLocal=(id,key,value)=>setReports(rows=>rows.map(r=>r.id===id?{...r,[key]:value}:r));
+ const save=async r=>{try{setSaving(r.id);const res=await api.patch(`/issues/${r.id}`,{status:r.status,priority:r.priority,admin_comment:r.admin_comment||"",authority_id:r.authority_id||null});setReports(rows=>rows.map(x=>x.id===r.id?{...x,...res.data}:x));setMsg(r.status==='RESOLVED'?`Report "${r.title}" resolved. The user has been notified.`:`Report "${r.title}" updated. The user has been notified.`);await load()}catch(e){setError(getError(e))}finally{setSaving('')}};
+ if(user&&user.role!=='ADMIN')return <Navigate to="/dashboard" replace/>;
+ if(!d)return <div className="page-title"><div><span className="eyebrow">ADMINISTRATION</span><h1>{error||'Loading admin dashboard…'}</h1></div></div>;
+ const s=d.stats;
+ return <><div className="page-title"><div><span className="eyebrow">ADMIN DASHBOARD</span><h1>Urban mobility control center</h1><p>Review citizen reports, update their status and notify users when work is completed.</p></div><button className="btn soft" onClick={load}><RefreshCw size={16}/> Refresh</button></div>
+ <div className="stats-grid">{[['Users',s.users],['Traffic records',s.traffic],['Parking locations',s.parking],['Transport routes',s.transport],['Citizen reports',s.issues],['Saved journeys',s.journeys],['Active trips',s.activeTrips],['Parking spaces free',s.availableParking]].map(x=><div className="stat-card" key={x[0]}><span>{x[0]}</span><strong>{x[1]}</strong></div>)}</div>
+ <div className="dashboard-grid"><div className="panel"><div className="panel-head"><div><span className="eyebrow">REPORT ANALYTICS</span><h2>Issue categories</h2></div></div><ResponsiveContainer width="100%" height={300}><BarChart data={d.issueCategories}><XAxis dataKey="name"/><YAxis allowDecimals={false}/><Tooltip/><Bar dataKey="value"/></BarChart></ResponsiveContainer></div><div className="panel"><div className="panel-head"><div><span className="eyebrow">TRAFFIC ANALYTICS</span><h2>Congestion levels</h2></div></div><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={d.trafficLevels} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={95} label>{d.trafficLevels.map((_,i)=><Cell key={i}/>)}</Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div></div>
+ <div className="panel admin-reports-panel"><div className="panel-head"><div><span className="eyebrow">CITIZEN REPORT MANAGEMENT</span><h2>All reported problems</h2><p>Admin can investigate, update progress, add a resolution note and notify the citizen.</p></div><span className="badge available"><ShieldCheck size={12}/> ADMIN CONTROL</span></div>
+ {error&&<div className="error-box">{error}</div>}
+ {!reports.length?<div className="empty"><FileWarning/><b>No citizen reports found.</b></div>:<div className="admin-report-list">{reports.map(r=><div className="admin-report" key={r.id}>
+ <div className="admin-report-head"><div><span className="issue-id">#{r.id}</span><h3>{r.title}</h3><p>{r.category} · {r.location||'Location not provided'} · Reported by {r.user_name||'User'}{r.user_email?` (${r.user_email})`:''}</p></div><span className={`badge ${String(r.status||'REPORTED').toLowerCase()}`}>{String(r.status||'REPORTED').replace('_',' ')}</span></div>
+ <div className="admin-report-body"><div><b>Description</b><p>{r.description||'No description provided.'}</p>{r.image_url&&<a className="report-image-link" href={r.image_url} target="_blank" rel="noreferrer">View uploaded photo</a>}</div><div className="admin-report-controls">
+ <label>Status<select value={r.status||'REPORTED'} onChange={e=>updateLocal(r.id,'status',e.target.value)}>{statuses.map(x=><option key={x}>{x}</option>)}</select></label>
+ <label>Priority<select value={r.priority||'MEDIUM'} onChange={e=>updateLocal(r.id,'priority',e.target.value)}>{priorities.map(x=><option key={x}>{x}</option>)}</select></label>
+ <label>Admin / resolution note<textarea rows="3" value={r.admin_comment||''} onChange={e=>updateLocal(r.id,'admin_comment',e.target.value)} placeholder="Example: Pothole repair completed near the main gate."/></label>
+ <button className="btn primary" disabled={saving===r.id} onClick={()=>save(r)}>{saving===r.id?<Clock3 size={16}/>:<Save size={16}/>} {saving===r.id?'Saving…':r.status==='RESOLVED'?'Mark work completed & notify':'Save update & notify'}</button>
+ </div></div>
+ <div className="admin-report-footer"><span><CheckCircle2 size={14}/> Reported {r.created_at?new Date(r.created_at).toLocaleString():''}</span><span>Current priority: <b>{r.priority||'MEDIUM'}</b></span>{r.admin_comment&&<span>Last note: {r.admin_comment}</span>}</div>
+ </div>)}</div>}
+ </div>
+ <div className="dashboard-grid"><div className="panel"><div className="panel-head"><div><span className="eyebrow">ISSUE STATUS</span><h2>Resolution progress</h2></div></div><ResponsiveContainer width="100%" height={280}><BarChart data={d.issueStatus}><XAxis dataKey="name"/><YAxis allowDecimals={false}/><Tooltip/><Bar dataKey="value"/></BarChart></ResponsiveContainer></div><div className="panel"><div className="panel-head"><div><span className="eyebrow">WORKFLOW</span><h2>Report → Resolution → Notification</h2></div></div><div className="mini-callout"><FileWarning/><div><b>1. Citizen reports a problem</b><span>Admin receives the report with location, category, priority and optional photo.</span></div></div><div className="mini-callout"><Clock3/><div><b>2. Admin updates progress</b><span>Set Reported, In Progress, Resolved or Rejected and add a note.</span></div></div><div className="mini-callout"><CheckCircle2/><div><b>3. User gets notified</b><span>When status or the admin note changes, a notification appears in the user's inbox.</span></div></div></div></div>
+ {msg&&<div className="toast"><span>{msg}</span><button className="icon-btn" onClick={()=>setMsg('')}>×</button></div>}
+ </>
+}

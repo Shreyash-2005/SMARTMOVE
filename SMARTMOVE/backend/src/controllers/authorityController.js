@@ -1,0 +1,1 @@
+import {authority} from './crudControllers.js'; export const listAuthorities=authority.list; export const createAuthority=authority.create; export const updateAuthority=authority.update; export const deleteAuthority=authority.remove;

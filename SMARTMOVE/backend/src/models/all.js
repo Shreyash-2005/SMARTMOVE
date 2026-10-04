@@ -1,0 +1,19 @@
+import mongoose from "mongoose";
+const {Schema,model}=mongoose;
+const opts={timestamps:{createdAt:"created_at",updatedAt:"updated_at"}};
+const point={latitude:Number,longitude:Number};
+
+export const User=model("User",new Schema({full_name:{type:String,required:true},email:{type:String,unique:true,lowercase:true,trim:true},phone:String,password_hash:String,google_id:{type:String,index:true},avatar_url:String,role:{type:String,enum:["USER","ADMIN","AUTHORITY"],default:"USER"},status:{type:String,default:"ACTIVE"},notification_enabled:{type:Boolean,default:true},location_enabled:{type:Boolean,default:true}},opts));
+export const Traffic=model("Traffic",new Schema({location:String,latitude:Number,longitude:Number,congestion_level:{type:String,default:"LOW"},average_speed:{type:Number,default:0},vehicle_count:{type:Number,default:0},incident_type:String,description:String},opts));
+export const Parking=model("Parking",new Schema({name:String,location:String,latitude:Number,longitude:Number,total_spaces:{type:Number,default:0},available_spaces:{type:Number,default:0},occupied_spaces:{type:Number,default:0},price_per_hour:{type:Number,default:0},status:{type:String,default:"AVAILABLE"}},opts));
+export const Transport=model("Transport",new Schema({route_number:String,source:String,destination:String,transport_type:String,next_arrival:String,status:{type:String,default:"ON_TIME"},latitude:Number,longitude:Number},opts));
+export const Authority=model("Authority",new Schema({name:String,department:String,officer_name:String,email:String,phone:String,area:String,status:{type:String,default:"ACTIVE"}},opts));
+export const Issue=model("Issue",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},title:String,description:String,category:String,location:String,latitude:Number,longitude:Number,image_url:String,priority:{type:String,default:"MEDIUM"},status:{type:String,default:"REPORTED"},authority_id:{type:Schema.Types.ObjectId,ref:"Authority"},admin_comment:String},opts));
+export const Journey=model("Journey",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},source:String,destination:String,transport_mode:String,distance_km:Number,estimated_minutes:Number,estimated_cost:Number,route_type:String,route_points:Array},opts));
+export const Notification=model("Notification",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},title:String,message:String,type:String,is_read:{type:Boolean,default:false}},opts));
+export const Favorite=model("Favorite",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},favorite_type:String,reference_id:String,title:String,metadata:Schema.Types.Mixed},opts));
+export const Alert=model("Alert",new Schema({title:String,message:String,type:String,severity:String,location:String,start_time:Date,end_time:Date},opts));
+export const Announcement=model("Announcement",new Schema({title:String,description:String,category:String,priority:String,publish_date:Date,expiry_date:Date},opts));
+export const ActivityLog=model("ActivityLog",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},action:String,entity:String,entity_id:String,description:String},opts));
+export const TripSession=model("TripSession",new Schema({user_id:{type:Schema.Types.ObjectId,ref:"User"},share_token:{type:String,index:true,unique:true},source:String,destination:String,transport_mode:String,destination_latitude:Number,destination_longitude:Number,current_latitude:Number,current_longitude:Number,accuracy_meters:Number,distance_km:Number,remaining_km:Number,eta_minutes:Number,traffic_status:String,traffic_summary:String,route_points:Array,status:{type:String,default:"ACTIVE"},started_at:{type:Date,default:Date.now},ended_at:Date,expires_at:Date},opts));
+export const TripLocation=model("TripLocation",new Schema({trip_id:{type:Schema.Types.ObjectId,ref:"TripSession"},latitude:Number,longitude:Number,accuracy_meters:Number,speed_mps:Number,heading:Number},opts));
