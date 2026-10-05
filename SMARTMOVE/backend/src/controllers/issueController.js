@@ -1,5 +1,202 @@
-import {Issue,Authority,Notification,ActivityLog} from "../models/all.js"; import {doc,docs} from "../utils/serialize.js";
-export async function createIssue(req,res,next){try{const x=req.body||{};const image=req.file?`/uploads/${req.file.filename}`:null;const i=await Issue.create({user_id:req.user.id,title:x.title,description:x.description,category:x.category,location:x.location,latitude:x.latitude?Number(x.latitude):null,longitude:x.longitude?Number(x.longitude):null,image_url:image,priority:x.priority||"MEDIUM"});res.status(201).json({id:String(i._id),message:"Issue reported successfully",...doc(i)});}catch(e){next(e)}}
-export async function myIssues(req,res,next){try{const r=await Issue.find({user_id:req.user.id}).populate("authority_id","name").sort({created_at:-1}).lean();res.json(r.map(x=>({...doc(x),authority_name:x.authority_id?.name||null,authority_id:x.authority_id?String(x.authority_id._id):null})));}catch(e){next(e)}}
-export async function allIssues(req,res,next){try{const r=await Issue.find().populate("user_id","full_name email").populate("authority_id","name").sort({created_at:-1}).lean();res.json(r.map(x=>({...doc(x),user_name:x.user_id?.full_name,user_email:x.user_id?.email,authority_name:x.authority_id?.name||null})));}catch(e){next(e)}}
-export async function updateIssue(req,res,next){try{const i=await Issue.findById(req.params.id);if(!i)return res.status(404).json({message:"Issue not found"});const oldStatus=i.status;const oldComment=i.admin_comment||"";const allowedStatus=["REPORTED","IN_PROGRESS","RESOLVED","REJECTED"];if(req.body.status!==undefined&&!allowedStatus.includes(req.body.status))return res.status(400).json({message:"Invalid issue status"});for(const k of ["status","priority","admin_comment"])if(req.body[k]!==undefined)i[k]=req.body[k];if(req.body.authority_id!==undefined)i.authority_id=req.body.authority_id||null;await i.save();await ActivityLog.create({user_id:req.user.id,action:"UPDATE",entity:"ISSUE",entity_id:String(i._id),description:`Admin updated issue ${i._id}: ${oldStatus} -> ${i.status}`});const changed=oldStatus!==i.status||oldComment!==(i.admin_comment||"");if(changed&&i.user_id){let title="Report updated";let message=`Your report "${i.title}" is now ${i.status.replace("_"," ")}.`;if(i.status==="IN_PROGRESS"){title="Work started on your report";message=`Work has started on your report "${i.title}".`;}else if(i.status==="RESOLVED"){title="Your report has been resolved";message=`Work is completed for your report "${i.title}". The issue has been marked as resolved.`;}else if(i.status==="REJECTED"){title="Report update";message=`Your report "${i.title}" was marked as rejected. Please check the report details for the latest update.`;}if(i.admin_comment)message+=` Admin note: ${i.admin_comment}`;await Notification.create({user_id:i.user_id,title,message,type:"ISSUE"});}res.json({message:"Issue updated and user notified when status/comment changed",...doc(i)});}catch(e){next(e)}}
+import {
+  Issue,
+  Authority,
+  Notification,
+  ActivityLog
+} from "../models/all.js";
+
+import { doc, docs } from "../utils/serialize.js";
+import cloudinary from "../config/cloudinary.js";
+
+export async function createIssue(req, res, next) {
+  try {
+    const x = req.body || {};
+
+    let image = null;
+
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "smartmove/issues",
+            resource_type: "image"
+          },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+
+        stream.end(req.file.buffer);
+      });
+
+      image = result.secure_url;
+    }
+
+    const i = await Issue.create({
+      user_id: req.user.id,
+      title: x.title,
+      description: x.description,
+      category: x.category,
+      location: x.location,
+      latitude: x.latitude ? Number(x.latitude) : null,
+      longitude: x.longitude ? Number(x.longitude) : null,
+      image_url: image,
+      priority: x.priority || "MEDIUM"
+    });
+
+    res.status(201).json({
+      id: String(i._id),
+      message: "Issue reported successfully",
+      ...doc(i)
+    });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function myIssues(req, res, next) {
+  try {
+    const r = await Issue.find({
+      user_id: req.user.id
+    })
+      .populate("authority_id", "name")
+      .sort({ created_at: -1 })
+      .lean();
+
+    res.json(
+      r.map(x => ({
+        ...doc(x),
+        authority_name: x.authority_id?.name || null,
+        authority_id: x.authority_id
+          ? String(x.authority_id._id)
+          : null
+      }))
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function allIssues(req, res, next) {
+  try {
+    const r = await Issue.find()
+      .populate("user_id", "full_name email")
+      .populate("authority_id", "name")
+      .sort({ created_at: -1 })
+      .lean();
+
+    res.json(
+      r.map(x => ({
+        ...doc(x),
+        user_name: x.user_id?.full_name,
+        user_email: x.user_id?.email,
+        authority_name: x.authority_id?.name || null
+      }))
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function updateIssue(req, res, next) {
+  try {
+    const i = await Issue.findById(req.params.id);
+
+    if (!i) {
+      return res.status(404).json({
+        message: "Issue not found"
+      });
+    }
+
+    const oldStatus = i.status;
+    const oldComment = i.admin_comment || "";
+
+    const allowedStatus = [
+      "REPORTED",
+      "IN_PROGRESS",
+      "RESOLVED",
+      "REJECTED"
+    ];
+
+    if (
+      req.body.status !== undefined &&
+      !allowedStatus.includes(req.body.status)
+    ) {
+      return res.status(400).json({
+        message: "Invalid issue status"
+      });
+    }
+
+    for (const k of [
+      "status",
+      "priority",
+      "admin_comment"
+    ]) {
+      if (req.body[k] !== undefined) {
+        i[k] = req.body[k];
+      }
+    }
+
+    if (req.body.authority_id !== undefined) {
+      i.authority_id = req.body.authority_id || null;
+    }
+
+    await i.save();
+
+    await ActivityLog.create({
+      user_id: req.user.id,
+      action: "UPDATE",
+      entity: "ISSUE",
+      entity_id: String(i._id),
+      description: `Admin updated issue ${i._id}: ${oldStatus} -> ${i.status}`
+    });
+
+    const changed =
+      oldStatus !== i.status ||
+      oldComment !== (i.admin_comment || "");
+
+    if (changed && i.user_id) {
+      let title = "Report updated";
+
+      let message =
+        `Your report "${i.title}" is now ${i.status.replace("_", " ")}.`;
+
+      if (i.status === "IN_PROGRESS") {
+        title = "Work started on your report";
+        message =
+          `Work has started on your report "${i.title}".`;
+      } else if (i.status === "RESOLVED") {
+        title = "Your report has been resolved";
+        message =
+          `Work is completed for your report "${i.title}". The issue has been marked as resolved.`;
+      } else if (i.status === "REJECTED") {
+        title = "Report update";
+        message =
+          `Your report "${i.title}" was marked as rejected. Please check the report details for the latest update.`;
+      }
+
+      if (i.admin_comment) {
+        message += ` Admin note: ${i.admin_comment}`;
+      }
+
+      await Notification.create({
+        user_id: i.user_id,
+        title,
+        message,
+        type: "ISSUE"
+      });
+    }
+
+    res.json({
+      message:
+        "Issue updated and user notified when status/comment changed",
+      ...doc(i)
+    });
+  } catch (e) {
+    next(e);
+  }
+}

@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import path from "path";
 import api from "./routes/index.js";
 import {notFound,errorHandler} from "./middleware/error.js";
 import {env} from "./config/env.js";
@@ -14,7 +13,6 @@ app.use(cors({ origin: env.frontendOrigin === "*" ? true : env.frontendOrigin.sp
 app.use(express.json({limit:"2mb"}));
 app.use(express.urlencoded({extended:true, limit:"2mb"}));
 app.use(rateLimit({windowMs:60*1000,max:180}));
-app.use("/uploads",express.static(path.resolve("uploads"), { maxAge: "1h" }));
 app.get("/api/health",(req,res)=>res.json({status:"ok",service:"SMARTMOVE API",timestamp:new Date().toISOString()}));
 app.use("/api",api);
 app.use(notFound);
